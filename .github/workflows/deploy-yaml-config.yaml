@@ -1,0 +1,56 @@
+name: deploy-yaml-config
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - yaml-configs/*
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "배포 환경"
+        type: choice
+        required: true
+        options:
+          - dev
+          - qa
+          - prod
+        default: dev
+      update-type:
+        description: Update Type ([MAJOR].[MINOR].[PATCH])
+        type: choice
+        required: true
+        options:
+          - PATCH
+          - MINOR
+          - MAJOR
+        default: PATCH
+
+jobs:
+  deploy-application-automatically:
+    if: github.event_name == 'push'
+    strategy:
+      matrix:
+        profile:
+          - dev
+          - qa
+    name: Deploy Application Automatically
+    uses: ./.github/workflows/deploy-application.yaml
+    with:
+      application: yaml-configs
+      profile: ${{ matrix.profile }}
+      version-config: yaml-configs/version.yaml
+      update-type: PATCH
+    secrets: inherit
+
+  deploy-application-manually:
+    if: github.event_name == 'workflow_dispatch'
+    name: Deploy Application Manually
+    uses: ./.github/workflows/deploy-application.yaml
+    with:
+      application: yaml-configs
+      profile: ${{ inputs.profile }}
+      mortar-config: yaml-configs/version.yaml
+      update-type: ${{ inputs.update-type }}
+    secrets: inherit

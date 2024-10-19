@@ -1,0 +1,109 @@
+name: build and push
+
+on:
+  workflow_call:
+    inputs:
+      application:
+        required: true
+        type: string
+      profile:
+        required: true
+        type: string
+      version-config:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      deploy-data-helm:
+        type: boolean
+        default: false
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_ACCOUNT_ID:
+        required: true
+    outputs:
+      version:
+        description: "The version of the application that was built and pushed"
+        value: ${{ jobs.build-and-push.outputs.version }}
+
+jobs:
+  get-prod:
+    name: "Get Prod"
+    runs-on:
+      group: prod
+      labels: jdk-node-scale-set
+    outputs:
+      prod: ${{ steps.get-prod.outputs.prod }}
+    steps:
+      - id: get-prod
+        run: |
+          if [ "${{ inputs.profile }}" == "prod" ]
+          then
+            echo "prod=true" >> $GITHUB_OUTPUT
+          else
+            echo "prod=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+  build-and-push:
+    name: "Build: ${{ inputs.application }}"
+    needs: [ get-prod ]
+    runs-on:
+      group: prod
+      labels: jdk-node-scale-set
+    env:
+      DEBUG: true
+      APP_PROFILE: ${{ inputs.profile }}
+    outputs:
+      version: ${{ steps.version-deploy.outputs.app-version }}
+    steps:
+      - name: Resolve AWS environment
+        id: aws
+        run: |
+          echo "::add-mask::${{ secrets.AWS_ACCESS_KEY_ID }}"
+          echo "access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_OUTPUT
+          echo "::add-mask::${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          echo "secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_OUTPUT
+          echo "::add-mask::${{ secrets.AWS_ACCOUNT_ID }}"
+          echo "account_id=${{ secrets.AWS_ACCOUNT_ID }}" >> $GITHUB_OUTPUT
+        shell: bash
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.BP_DEPLOYER_GITHUB_TOKEN }}
+      - uses: chrisdickinson/setup-yq@latest
+      - name: Change version version
+        run: |
+          yq w -i ${{ inputs.version-config }} version ${{ inputs.version }}
+      - name: Deploy # not real deploy
+        id: Deploy
+        run: |
+          echo "deploying with s3 credential"
+        shell: bash
+      - name: Report Summary
+        run: |
+          cat > $GITHUB_STEP_SUMMARY << EOF
+          ### Deployment Information
+          배포가 실행되었습니다. :rocket:
+          | Key | Value |
+          | --- | --- |
+          | Application | ${{ inputs.application }} |
+          | Environment | ${{ env.APP_PROFILE }} |
+          | Application Version | ${{ inputs.version }} |
+          | Deployed By | @${{ github.actor }} |
+          EOF
+      - name: Push commit and tag
+        if: inputs.profile == 'prod'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "[skip actions] Automatically update version.yaml version of ${{ inputs.application }} to v${{ inputs.version }}"
+          tagging_message: "${{ inputs.application }}-v${{ inputs.version }}"
+          branch: main
+          commit_user_name: deployer
+          commit_user_email: deployer@users.noreply.github.com
+          commit_author: deployer <deployer@users.noreply.github.com>
