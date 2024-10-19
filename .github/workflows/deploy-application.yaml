@@ -1,0 +1,68 @@
+name: deploy-application
+
+on:
+  workflow_call:
+    inputs:
+      application:
+        description: "배포할 애플리케이션"
+        type: string
+        required: true
+      profile:
+        description: "배포 환경"
+        type: string
+        required: true
+        default: dev
+      version-config:
+        description: "Version 설정 파일 경로"
+        type: string
+        required: true
+      update-type:
+        description: "업데이트 타입"
+        type: string
+        required: true
+        default: PATCH
+    secrets:
+
+jobs:
+  get-updated-version:
+    name: Get Updated Version
+    runs-on:
+      group: prod
+      labels: jdk-node-scale-set
+    env:
+      DEBUG: true
+    outputs:
+      updated-version: ${{ steps.generate-next-version.outputs.updated-version }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - uses: chrisdickinson/setup-yq@latest
+      - id: get-current-version
+        run: |
+          echo "result=$(yq r ${{ inputs.version-config }} version)" >> $GITHUB_OUTPUT
+      - id: version
+        uses: madhead/semver-utils@latest
+        with:
+          version: ${{ steps.get-current-version.outputs.result }}
+      - name: Generate Next Version
+        id: generate-next-version
+        run: |
+          if [[ "${{ inputs.update-type }}" == "MAJOR" ]]; then
+            GEN_VERSION="${{ steps.version.outputs.inc-major }}"
+          elif [[ "${{ inputs.update-type }}" == "MINOR" ]]; then
+            GEN_VERSION="${{ steps.version.outputs.inc-minor }}"
+          else
+            GEN_VERSION="${{ steps.version.outputs.inc-patch }}"
+          fi
+          echo "updated-version=${GEN_VERSION}" >> $GITHUB_OUTPUT
+        shell: bash
+
+  build-and-push:
+    name: "Build and Push: ${{ inputs.application }}"
+    needs: [ get-updated-version ]
+    uses: ./.github/workflows/build-and-push.yaml
+    with:
+      application: ${{ inputs.application }}
+      profile: ${{ inputs.profile }}
+      version: ${{ needs.get-updated-version.outputs.updated-version }}
+    secrets: inherit
