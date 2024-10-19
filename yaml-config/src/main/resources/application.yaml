@@ -1,0 +1,25 @@
+profile: local
+
+kafka:
+  bootstrapServers: ${KAFKA_BOOTSTRAP_SERVERS:http://localhost:9092}
+  schemaRegistryUrl: ${KAFKA_SCHEMA_REGISTRY_URL:http://localhost:8081}
+  transactionTimeoutMs: ${KAFKA_TRANSACTION_TIMEOUT_MS:600000}
+  partitionDiscoveryIntervalMs: ${KAFKA_PARTITION_DISCOVERY_INTERVAL_MS:600000}
+
+redis:
+  clusterHosts: ${REDIS_CLUSTER_HOSTS:null}
+  port: ${REDIS_PORT:null}
+  writeHost: ${REDIS_WRITE_HOST:http://localhost}
+  writePort: ${REDIS_WRITE_PORT:6379}
+  readHost: ${REDIS_READ_HOST:http://localhost}
+  readPort: ${REDIS_READ_PORT:6379}
+  password: ${REDIS_PASSWORD:''}
+  standalonePassword: ${REDIS_STANDALONE_PASSWORD:''}
+  ssl: ${REDIS_SSL:false}
+
+mongo:
+  url: ${MONGO_URI:mongodb+srv://admin:1234@localhost:27017/test?ssl=false}
+  database: ${MONGO_DATABASE:test}
+  host: ${MONGO_HOST:localhost:27017}
+  login: ${MONGO_LOGIN:admin}
+  password: ${MONGO_PASSWORD:1234}
