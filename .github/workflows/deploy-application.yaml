@@ -56,6 +56,16 @@ jobs:
           fi
           echo "updated-version=${GEN_VERSION}" >> $GITHUB_OUTPUT
         shell: bash
+      - name: Push commit and tag
+        if: inputs.profile == 'prod'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "[skip actions] Automatically update version.yaml version of ${{ inputs.application }} to v${{ steps.generate-next-version.outputs.updated-version }}"
+          tagging_message: "${{ inputs.application }}-v${{ steps.generate-next-version.outputs.updated-version }}"
+          branch: main
+          commit_user_name: deployer
+          commit_user_email: deployer@users.noreply.github.com
+          commit_author: deployer <deployer@users.noreply.github.com>
 
   build-and-push:
     name: "Build and Push: ${{ inputs.application }}"
